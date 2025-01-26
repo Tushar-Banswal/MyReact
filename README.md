@@ -1,7 +1,7 @@
 # MyReact
 Tried to create a React library from scratch.
 
-Here, I tried to reverse engineer the core React feature like Functional Component and useState hook. MyReact library has a custom createElement function which is called when transpiling the JSX, it also has a custom render which will render the JSX into the parent/root DOM element.
+Here, I tried to reverse engineer the core React feature like Functional Component, useState and useEffect hook. MyReact library has a custom createElement function which is called when transpiling the JSX, it also has a custom render which will render the JSX into the parent/root DOM element.
 I refer to the following resources while creating this:
 
 [WTF is JSX](https://jasonformat.com/wtf-is-jsx/)
