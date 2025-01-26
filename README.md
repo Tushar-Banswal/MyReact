@@ -8,6 +8,8 @@ I refer to the following resources while creating this:
 
 [Build your own React](https://pomb.us/build-your-own-react/)
 
+[How to write virtual Dom](https://medium.com/@deathmood/how-to-write-your-own-virtual-dom-ee74acc13060)
+
 I am using Babel for tranpiling the index.js file, after transpiling transpiled.js file is created which is linked to the index.html file.
 
 # Try MyReact by your own
