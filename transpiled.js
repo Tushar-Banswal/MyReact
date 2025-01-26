@@ -10,6 +10,9 @@ const Counter = () => {
   const decrement = () => {
     setCounter(counter => counter - 1);
   };
+  MyReact.useEffect(() => {
+    console.log('Side Effect');
+  }, [counter]);
   return MyReact.createElement("div", null, MyReact.createElement("h1", null, "Count"), counter, MyReact.createElement("br", null), MyReact.createElement("button", {
     onClick: increment
   }, "+"), MyReact.createElement("button", {

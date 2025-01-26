@@ -11,6 +11,13 @@ class MyReact {
     static isGone = (newProps) => (key) => !(key in newProps);
     static isEvent = (key) => key.startsWith("on");
 
+    /**
+     * Create a virtual DOM of the JSX.
+     * @param {string} type Type of DOM node
+     * @param {Object} props Attributes of DOM node
+     * @param  {Array} children Children of the DOM node
+     * @returns {Object} Virtual DOM representation of JSX
+     */
     static createElement(type, props, ...children) {
         return {
             type,
@@ -27,16 +34,26 @@ class MyReact {
         };
     }
 
-    static #createTextElement(child) {
+    /**
+     * Create a virtual DOM of the eext Element
+     * @param {string} value text rLement
+     * @returns {Object} Virtual DOM of the text element
+     */
+    static #createTextElement(value) {
         return {
             type: "TEXT_ELEMENT",
             props: {
-                nodeValue: child,
+                nodeValue: value,
                 children: [],
             },
         };
     }
 
+    /**
+     * Create a DOM from the virtual DOM
+     * @param {Object} fiber Fiber node
+     * @returns DOM node
+     */
     static #createDomNode(fiber) {
         const node =
             fiber.type === "TEXT_ELEMENT"
@@ -48,6 +65,11 @@ class MyReact {
         return node;
     }
 
+    /**
+     * Renders the virtual DOM
+     * @param {*} element Virtual DOM Element
+     * @param {*} container DOM Container
+     */
     static render(element, container) {
         MyReact.#wipRoot = {
             node: container,
@@ -59,9 +81,14 @@ class MyReact {
         };
         MyReact.#nextUnitOfWork = MyReact.#wipRoot;
 
+        // calling when the thread is idle
         requestIdleCallback(MyReact.#workLoop);
     }
 
+    /**
+     * Callback to requestIdleCallback browser api, calls when the browser thread is idle.
+     * @param {Object} deadline idle time left
+     */
     static #workLoop(deadline) {
         let shouldContinue = true;
 
@@ -77,9 +104,18 @@ class MyReact {
             MyReact.#wipRoot = null;
         }
 
+        // calling again when the thread is idle
         requestIdleCallback(MyReact.#workLoop);
     }
 
+    /**
+     * This function perform three tasks:-
+     * 1.Create DOM node for the current fiber node
+     * 2.Create a fiber node for the current fiber node's children
+     * 3.Return the next fiber node as next work to perform
+     * @param {Object} fiber current unit of work
+     * @returns next unit of work
+     */
     static #performNextUnitOfWork(fiber) {
         const isFunctionalComponent = typeof fiber.type === 'function';
         if (isFunctionalComponent) {
@@ -101,6 +137,10 @@ class MyReact {
         }
     }
 
+    /**
+     * Commit the Fiber tree
+     * @param {Object} fiber Fiber tree
+     */
     static #commitWork(fiber) {
         if (!fiber) {
             return;
@@ -121,14 +161,35 @@ class MyReact {
                 deleteFiber = fiber.child;
             }
             parentNode.removeChild(deleteFiber.node);
+            // calling side effects cleanup on unmounting
+            fiber.hooks.forEach(hook => {
+                if(hook.callSideEffectCleanUp) {
+                    hook.sideEffectCleanUp();
+                }
+            })
+
+            return;
         } else if (fiber.effectiveTag === "UPDATE" && fiber.node) {
             MyReact.#updateDomNode(fiber.node, fiber.props, fiber.alternate.props);
         }
 
+        // calling side effect on mounting
+        fiber.hooks && fiber.hooks.forEach(hook => {
+            if(hook.callSideEffect) {
+                hook.sideEffectCleanUp = hook.sideEffect();
+                hook.callSideEffectCleanUp = true;
+            }
+        })
         MyReact.#commitWork(fiber.child);
         MyReact.#commitWork(fiber.sibling);
     }
 
+    /**
+     * Fiber Reconsillation Algorithm
+     * Resolve which child node need to get 'UPDATE', 'ADD', or 'DELETE'
+     * @param {*} fiber Fiber node
+     * @param {*} children Fiber node's Children
+     */
     static #reconcileChildren(fiber, children) {
         let index = 0;
         let oldChildFiber = fiber.alternate && fiber.alternate.child;
@@ -179,6 +240,16 @@ class MyReact {
         }
     }
 
+    /**
+     * Update's the DOM node
+     * 1.Add the new Attributes
+     * 2.Remove old Attributes
+     * 3.Add new Events
+     * 4.Remove new Events
+     * @param {Object} node DOM node
+     * @param {Object} newProps new Properties
+     * @param {Object} prevProps old Properties
+     */
     static #updateDomNode(node, newProps, prevProps) {
         const oldProperties = Object.keys(prevProps)
             .filter(MyReact.isProperty)
@@ -219,27 +290,37 @@ class MyReact {
         });
     }
 
+    /**
+     * Update the fiber nodes
+     * @param {Object} fiber Fiber node
+     */
     static #updateHostComponent(fiber) {
         if (!fiber.node) {
             fiber.node = MyReact.#createDomNode(fiber);
         }
-        MyReact.#wipFiber = fiber;
-        MyReact.#wipFiber.hooks = [];
-        MyReact.#hookIndex = 0;
         const { children = [] } = fiber.props;
         MyReact.#reconcileChildren(fiber, children);
     }
 
+    /**
+     * Update Functional Components
+     * @param {*} fiber Fiber node 
+     */
     static #updateFunctionalComponent(fiber) {
+        MyReact.#wipFiber = fiber;
+        MyReact.#wipFiber.hooks = [];
+        MyReact.#hookIndex = 0;
         const children = [fiber.type(fiber.props)];
         MyReact.#reconcileChildren(fiber, children);
     }
 
+    /**
+     * Hook to manage funcitonal components state
+     * @param {*} initialValue initial state value
+     * @returns {Array} Contains state and function to update state
+     */
     static useState(initialValue) {
-        const oldHook = MyReact.#wipFiber 
-            && MyReact.#wipFiber.alternate
-            && MyReact.#wipFiber.alternate.hooks 
-            && MyReact.#wipFiber.alternate.hooks[MyReact.#hookIndex];
+        const oldHook = MyReact.#getOldHook();
 
         const hook = {
             state: oldHook ? oldHook.state : initialValue, actionQueue: []
@@ -268,6 +349,60 @@ class MyReact {
         MyReact.#hookIndex++;
 
         return [hook.state, setState]
+    }
+
+    /**
+     * Hook to have side effects
+     * @param {Function} callback side effect
+     * @param {Array} dependencyArray Dependices for the side effect
+     */
+    static useEffect(callback, dependencyArray) {
+        const oldHook = MyReact.#getOldHook();
+
+        const oldDependencies = oldHook ? oldHook.dependencies : [];
+        const isChanged = MyReact.#diffCheck(oldDependencies, dependencyArray);
+
+        const hook = {
+            dependencies : [...dependencyArray],
+            sideEffect: callback,
+            callSideEffect: isChanged,
+            sideEffectCleanUp: null,
+            callSideEffectCleanUp: null
+        }
+
+        MyReact.#wipFiber.hooks.push(hook);
+        MyReact.#hookIndex++;
+    }
+
+    /**
+     * Get the previous virtual Fiber dom hook
+     * @returns hook
+     */
+    static #getOldHook() {
+        return MyReact.#wipFiber 
+            && MyReact.#wipFiber.alternate
+            && MyReact.#wipFiber.alternate.hooks 
+            && MyReact.#wipFiber.alternate.hooks[MyReact.#hookIndex];
+    }
+
+    /**
+     * Checks if the dependcies are different
+     * @param {*} oldDependencies old dependencies
+     * @param {*} newDependencies new dependencies
+     * @returns {Boolean} true if different false otherwise
+     */
+    static #diffCheck(oldDependencies, newDependencies) {
+        if (oldDependencies.length !== newDependencies.length) {
+            return true;
+        }
+        for (let index = 0; index < newDependencies.length; index++) {
+            const isEqual = typeof oldDependencies[index] == typeof newDependencies[index]
+                && oldDependencies[index] === newDependencies[index]
+            if (!isEqual) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 

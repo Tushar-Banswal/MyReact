@@ -12,6 +12,11 @@ const Counter = () => {
   const decrement = () => {
     setCounter(counter => counter - 1);
   }
+
+  MyReact.useEffect(()=>{
+    console.log('Side Effect');
+  }, [counter])
+  
   return (
     <div>
       <h1>Count</h1>
